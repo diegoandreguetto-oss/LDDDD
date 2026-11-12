@@ -99,8 +99,14 @@ tr.ducci .pill,tr.ducci .pill.e{background:#fff;border-color:#000;color:#000;fon
 .elec button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .elec button[aria-pressed="true"] small{color:var(--accent-ink);opacity:.85}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px}
-.mini{display:flex;gap:1px;height:12px;min-width:120px}
-.mini .seg{border-radius:0}.mini .l{border-radius:3px 0 0 3px}.mini .f{border-radius:0 3px 3px 0}
+.gstack{display:flex;gap:1px;height:14px;min-width:140px}
+.gstack i{display:block;height:100%}
+.gstack .g1{background:var(--accent)}.gstack .g2{background:var(--bar)}.gstack .g3{background:var(--flavio)}
+.dot.g1{background:var(--accent)}.dot.g2{background:var(--bar)}.dot.g3{background:var(--flavio)}
+.gleg{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12.5px;color:var(--muted)}
+.gleg b{font-family:var(--f-head);color:var(--ink)}
+td.dcell{background:var(--hl);color:var(--hl-ink);font-weight:700}
+td.dcell .bar{background:rgba(0,0,0,.15)}td.dcell .bar i{background:#000}
 .rg{background:none;border:0;text-align:left;padding:0;font-weight:600;color:var(--accent)}
 tr.open>td{background:var(--soft)}
 td.exp{padding:10px 8px 14px;background:var(--soft)}
@@ -193,15 +199,17 @@ const slugOf = m => m;
 const LS = {get(k){try{return localStorage.getItem(k)}catch(e){return null}}, set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 
 /* ---------- agregados por Regional ---------- */
-const AG = D.R.map(() => ({mun:0, pr:{}, prT:0, go:{}, goT:0, ducci:0, win:{}}));
-const ST = {pr:{}, prT:0, ducci:0, win:{}};
+const AG = D.R.map(() => ({mun:0, pr:{}, prT:0, go:{}, goT:0, ducci:0, ducciT:0, dTop:null, win:{}}));
+const ST = {pr:{}, prT:0, goT:0, ducci:0, win:{}};
 D.M.forEach((m,i) => {
   const a = AG[m.r]; a.mun++;
   m.pr.forEach(r => { a.pr[r[0]] = (a.pr[r[0]]||0)+r[3]; ST.pr[r[0]] = (ST.pr[r[0]]||0)+r[3]; });
   a.prT += m.t[0]; ST.prT += m.t[0];
   m.go.forEach(r => { a.go[r[0]] = (a.go[r[0]]||0)+r[3]; });
-  a.goT += m.t[1];
+  a.goT += m.t[1]; ST.goT += m.t[1];
   if (m.d) { a.ducci += m.d[0]; ST.ducci += m.d[0]; }
+  a.ducciT += m.t[3];
+  if (m.d && m.d[0]>0 && (!a.dTop || m.d[0]>a.dTop[0])) a.dTop = [m.d[0], m.n, i];
   const w = m.pr[0][0]; a.win[w] = (a.win[w]||0)+1; ST.win[w] = (ST.win[w]||0)+1;
 });
 const lead = (obj) => Object.entries(obj).sort((x,y)=>y[1]-x[1])[0];
@@ -379,44 +387,47 @@ function renderHits(q){
 }
 
 /* ---------- visão Panorama ---------- */
-let openReg = -1;
-function mini(l,f){ return `<div class="mini" role="img" aria-label="Lula ${fPct(l)}, Flávio ${fPct(f)}"><div class="seg l" style="width:${l}%"></div><div class="seg f" style="width:${f}%"></div></div>`; }
+let openReg = -1, ducciAll = false;
 function panorama(){
-  const sl = ST.pr[ID_L]/ST.prT*100, sf = ST.pr[ID_F]/ST.prT*100;
+  const goSum = {}; AG.forEach(a=>{ for (const k in a.go) goSum[k]=(goSum[k]||0)+a.go[k]; });
+  const g3 = Object.entries(goSum).sort((x,y)=>y[1]-x[1]).slice(0,3).map(e=>+e[0]);
   const maxD = Math.max(...AG.map(a=>a.ducci));
   const rows = AG.map((a,i)=>{
-    const l = (a.pr[ID_L]||0)/a.prT*100, f = (a.pr[ID_F]||0)/a.prT*100;
     const g = lead(a.go);
     const open = openReg===i;
+    const gs = g3.map((c,si)=>{ const v=a.go[c]||0; return `<i class="g${si+1}" style="width:${(v/a.goT*100).toFixed(2)}%" title="${esc(D.c[c])}: ${fPct(v/a.goT*100)}"></i>`; }).join('');
+    const dt = a.dTop;
     let h = `<tr class="${open?'open':''}"><td><button class="rg" data-reg="${i}" aria-expanded="${open}">${i+1}ª · ${esc(D.R[i])}</button></td><td class="c">${a.mun}</td>
-      <td><div style="display:flex;align-items:center;gap:8px;white-space:nowrap">${mini(l,f)}<span><b style="color:var(--lula)">${fPct(l)}</b> · <b style="color:var(--flavio-t)">${fPct(f)}</b></span></div></td>
-      <td class="c">${a.win[ID_L]||0} × ${a.win[ID_F]||0}</td>
+      <td><div class="gstack" role="img" aria-label="3 governadores mais votados: ${g3.map(c=>esc(D.c[c])).join(', ')}">${gs}</div></td>
       <td>${esc(D.c[+g[0]])} <span class="muted">${fPct(g[1]/a.goT*100)}</span></td>
-      <td class="r"><div class="pc"><span>${fN(a.ducci)}</span><span class="bar"><i style="width:${(a.ducci/maxD*100).toFixed(1)}%"></i></span></div></td></tr>`;
+      <td>${dt?`<button class="hit" data-go="${dt[2]}">${esc(dt[1])}</button> <span class="muted">${fN(dt[0])} votos</span>`:'—'}</td>
+      <td class="r dcell"><div class="pc"><span>${fN(a.ducci)} · ${fPct(a.ducci/a.ducciT*100)}</span><span class="bar"><i style="width:${(a.ducci/maxD*100).toFixed(1)}%"></i></span></div></td></tr>`;
     if (open) {
       const ms = D.M.map((m,j)=>[m,j]).filter(([m])=>m.r===i);
       h += `<tr><td class="exp" colspan="6"><div class="mlist">${ms.map(([m,j])=>{
-        const l = m.pr.find(r=>r[0]===ID_L), f = m.pr.find(r=>r[0]===ID_F);
-        return `<button class="hit" data-go="${j}">${esc(m.n)}<small>L ${fPc(l[4])} · F ${fPc(f[4])}</small></button>`;}).join('')}</div></td></tr>`;
+        return `<button class="hit" data-go="${j}">${esc(m.n)}<small>Ducci ${m.d?fN(m.d[0])+' · '+fPc(m.d[1]):'—'}</small></button>`;}).join('')}</div></td></tr>`;
     }
     return h;
   }).join('');
-  const top = D.M.map((m,i)=>[m,i]).filter(([m])=>m.d).sort((a,b)=>b[0].d[0]-a[0].d[0]).slice(0,10);
-  const mx = top[0][0].d[0];
+  const dlist = D.M.map((m,i)=>[m,i]).filter(([m])=>m.d && m.d[0]>0).sort((a,b)=>b[0].d[0]-a[0].d[0]);
+  const shown = ducciAll ? dlist : dlist.slice(0,10);
+  const mx = dlist[0][0].d[0];
+  const dtop = dlist[0];
+  const gleg = g3.map((c,si)=>{ const v = AG.reduce((s,a)=>s+(a.go[c]||0),0); return `<span><i class="dot g${si+1}"></i>${esc(D.c[c])} <b>${fPct(v/ST.goT*100)}</b></span>`; }).join('');
   $('#v-p').innerHTML = `
     <div class="kpis">
       <div class="card"><div class="l">Municípios</div><div class="v">399</div><div class="s">em 22 Regionais de Saúde</div></div>
-      <div class="card" style="grid-column:span 2;min-width:0"><div class="l">Presidente · 2º turno · soma dos 399 municípios</div>
-        <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px"><div class="h2h" style="height:22px" role="img" aria-label="Lula ${fPct(sl)}, Flávio ${fPct(sf)}"><div class="seg l" style="width:${sl}%"></div><div class="seg f" style="width:${sf}%"></div></div>
-        <div class="h2hl"><span><i class="dot l"></i>LULA <b>${fPct(sl)}</b> · ${fN(ST.pr[ID_L])}</span><span>FLAVIO BOLSONARO <b>${fPct(sf)}</b> · ${fN(ST.pr[ID_F])}<i class="dot f" style="margin:0 0 0 6px"></i></span></div></div>
-        <div class="s" style="margin-top:6px">Municípios vencidos: Lula ${ST.win[ID_L]||0} · Flávio Bolsonaro ${ST.win[ID_F]||0}</div></div>
       <div class="card ducci"><div class="l">Luciano Ducci · Dep. Federal</div><div class="v">${fN(ST.ducci)} votos</div><div class="s">soma dos 399 municípios</div></div>
+      <div class="card ducci"><div class="l">Município onde Ducci mais votou</div><div class="v">${esc(dtop[0].n)}</div><div class="s">${fN(dtop[0].d[0])} votos · ${dtop[0].r+1}ª RS · ${fPc(dtop[0].d[1])}</div></div>
     </div>
     <section class="sec"><h3>Regionais de Saúde</h3>
       <p class="muted" style="margin:0;font-size:12.5px">Percentuais regionais somam os votos dos municípios e dividem pelos votos válidos da Regional. Clique em uma Regional para listar seus municípios.</p>
-      <div class="tw"><table><thead><tr><th>Regional</th><th class="c">Mun.</th><th>Presidente (Lula · Flávio)</th><th class="c">Municípios vencidos (L × F)</th><th>Governador · mais votado</th><th class="r">Votos Luciano Ducci</th></tr></thead><tbody>${rows}</tbody></table></div></section>
-    <section class="sec"><h3>Luciano Ducci: 10 maiores votações municipais</h3>
-      <ol class="rk">${top.map(([m,i])=>`<li><button data-go="${i}">${esc(m.n)} <span class="muted" style="font-weight:400">· ${m.r+1}ª RS</span></button><div class="trk"><i style="width:${(m.d[0]/mx*100).toFixed(1)}%"></i></div><span><b>${fN(m.d[0])}</b> · ${fPc(m.d[1])} · ${m.d[2]}º</span></li>`).join('')}</ol></section>`;
+      <div class="gleg"><span style="font-weight:600">Governador · 3 mais votados no estado:</span> ${gleg}</div>
+      <div class="tw"><table><thead><tr><th>Regional</th><th class="c">Mun.</th><th>Governador · 3 mais votados</th><th>Governador · mais votado</th><th>Município onde Ducci mais votou</th><th class="r">Votos Luciano Ducci</th></tr></thead><tbody>${rows}</tbody></table></div></section>
+    <section class="sec"><h3>Luciano Ducci: municípios com mais votos</h3>
+      <div class="meta"><span>Municípios com votos em Ducci: <b>${dlist.length}</b></span><span>Exibindo: <b>${shown.length}</b></span></div>
+      <ol class="rk">${shown.map(([m,i])=>`<li><button data-go="${i}">${esc(m.n)} <span class="muted" style="font-weight:400">· ${m.r+1}ª RS</span></button><div class="trk"><i style="width:${(m.d[0]/mx*100).toFixed(1)}%"></i></div><span><b>${fN(m.d[0])}</b> · ${fPc(m.d[1])} · ${m.d[2]}º</span></li>`).join('')}</ol>
+      ${!ducciAll?`<button class="more" data-ducci="1">Mostrar mais (todos os ${dlist.length} municípios)</button>`:`<button class="more" data-ducci="0">Mostrar menos</button>`}</section>`;
 }
 
 /* ---------- navegação ---------- */
@@ -534,6 +545,7 @@ document.addEventListener('click', e => {
   const t = e.target.closest('[data-tab]'); if (t) return setTab(t.dataset.tab);
   const g = e.target.closest('[data-go]'); if (g) return openMun(+g.dataset.go, true);
   const r = e.target.closest('[data-reg]'); if (r){ openReg = openReg===+r.dataset.reg ? -1 : +r.dataset.reg; return panorama(); }
+  const dz = e.target.closest('[data-ducci]'); if (dz){ ducciAll = dz.dataset.ducci==='1'; return panorama(); }
   const el = e.target.closest('[data-elec]'); if (el){ elec = el.dataset.elec; return detail(); }
   const mo = e.target.closest('[data-more]'); if (mo){ expd[mo.dataset.more]=true; return detail(); }
   const ml = e.target.closest('[data-less]'); if (ml){ expd[ml.dataset.less]=false; detail(); return $('#s-'+ml.dataset.less).scrollIntoView({block:'start'}); }
